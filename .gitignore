@@ -1,0 +1,77 @@
+# IntelliJ
+.idea_modules
+*.iml
+*.iws
+*.ipr
+.idea/
+build/
+*/build/
+out/
+examples/
+# vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# OS X
+.history
+.DS_Store
+
+# Terraform
+.terraform
+*.tfstate
+*.tfstate.*
+
+# Exclude all .tfvars files, which are likely to contain sentitive data, such as
+# password, private keys, and other secrets. These should not be part of version
+# control as they are data points which are potentially sensitive and subject
+# to change depending on the environment.
+#
+!test.tfvars
+*.tfvars
+*.tfvars.json
+
+# Ignore override files as they are usually used to override resources locally and so
+# are not checked in
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Include override files you do wish to add to version control using negated pattern
+#
+# !example_override.tf
+
+# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
+# example: *tfplan*
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore the terraform lock file to ensure cross platform compatibility. If you wish to track the terraform lock file in
+# version control, be sure to generate one that works for all operator platforms in your team using the providers lock
+# command. Refer to https://www.terraform.io/docs/cli/commands/providers/lock.html for more info. For example, to
+# generate a lock file that is compatible with Intel based MacBooks and ECS Deploy Runner:
+#
+#   terragrunt run-all providers lock -platform=darwin_amd64 -platform=linux_amd64
+#
+.terraform.lock.hcl
+
+# Terragrunt
+.terragrunt-cache
+
+# Tfsec
+.tfsec/cache
+
+# Project
+config.yaml
+hosts.yml
+vars.yml
+*.rpm
+root_ca.crt
+server.crt
+server.key

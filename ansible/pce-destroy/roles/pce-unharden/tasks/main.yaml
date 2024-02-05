@@ -1,0 +1,24 @@
+---
+
+
+
+- name: "Remove hash from modprobe"
+  shell: rm -f /etc/modprobe.d/illumio.conf
+  when: "prefix_name in group_names"
+
+- name: "Remove firewalld rules"
+  shell: rm -f /etc/firewalld/zones/internal.xml
+  when: "prefix_name in group_names"
+
+- name: "Remove firewalld rules"
+  shell: rm -f /etc/firewalld/zones/internal.xml.old
+  when: "prefix_name in group_names"
+
+- name: "Prevent firewalld from getting loaded"
+  systemd:
+    name: firewalld
+    state: stopped
+    enabled: no
+    masked: no
+  ignore_errors: true
+  when: "prefix_name in group_names"

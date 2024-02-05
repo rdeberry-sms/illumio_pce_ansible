@@ -1,0 +1,66 @@
+# PCE runtime_env.yml parameters
+install_root: {{install_root}}
+runtime_data_root: {{runtime_data_dir}}
+persistent_data_root: {{persistent_data_dir}}
+ephemeral_data_root: {{ephemeral_data_dir}}
+log_dir: {{log_dir}}
+private_key_cache_dir: {{private_key_cache_dir}}
+node_type: {{node_class}}
+{% if cluster_type is defined %}
+cluster_type: {{ cluster_type }}
+{% endif %}
+web_service_certificate: {{cert_dir}}/{{machine_cert}}
+web_service_private_key: {{cert_dir}}/{{machine_private_key}}
+front_end_https_port: {{ven_port}}
+front_end_management_https_port: {{mgmt_port}}
+front_end_event_service_port: {{ven_lightning_port}}
+pce_fqdn: {{pce_fqdn_name}}
+service_discovery_fqdn: {{service_discovery_server}}
+service_discovery_encryption_key: {{service_discovery_encryption_key}}
+email_address: noreply@{{prefix_name}}.{{pce_domain_name}}
+email_display_name: noreply@{{prefix_name}}
+smtp_relay_address: 127.0.0.1:25
+expose_user_invitation_link: true
+syslog_event_export_format: json
+cluster_public_ips:
+  cluster_fqdn:
+{% for ip in hostvars[inventory_hostname]['groups']['corenodes'] %}
+{% if ip in hostvars[inventory_hostname]['groups'][prefix_name] %}
+  - {{ip}}
+{% endif %}
+{% endfor %}
+{% if load_balancer_ip is defined %}
+  - {{load_balancer_ip}}
+{% endif %}
+export_flow_summaries_to_syslog:
+  - accepted
+  - potentially_blocked
+  - blocked
+{% if 'datanodes' in group_names %}
+traffic_datastore:
+  data_dir: /var/lib/illumio-pce/data/traffic
+  max_disk_usage_gb: 400
+  partition_fraction: 50
+{% endif %}
+common_criteria_events_enabled: true
+max_failed_login_attempts: 3
+account_lockout_duration_minutes: 15
+login_banner: 'You are accessing a U.S. Government (USG) Information System (IS) that is
+provided for USG-authorized use only. By using this IS (which includes any
+device attached to this IS), you consent to the following conditions:
+-The USG routinely intercepts and monitors communications on this IS for
+purposes including, but not limited to, penetration testing, COMSEC monitoring,
+network operations and defense, personnel misconduct (PM), law enforcement
+(LE), and counterintelligence (CI) investigations.
+-At any time, the USG may inspect and seize data stored on this IS.
+-Communications using, or data stored on, this IS are not private, are subject
+to routine monitoring, interception, and search, and may be disclosed or used
+for any USG-authorized purpose.
+-This IS includes security measures (e.g., authentication and access controls)
+to protect USG interests--not for your personal benefit or privacy.
+-Notwithstanding the above, using this IS does not constitute consent to PM, LE
+or CI investigative searching or monitoring of the content of privileged
+communications, or work product, related to personal representation or services
+by attorneys, psychotherapists, or clergy, and their assistants. Such
+communications and work product are private and confidential. See User
+Agreement for details.'

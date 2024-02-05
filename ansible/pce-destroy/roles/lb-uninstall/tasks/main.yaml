@@ -1,0 +1,13 @@
+---
+- name: "Uninstall Haproxy"
+  dnf:
+    name: haproxy
+    state: absent
+  when: "'lbnodes' in group_names"
+
+
+- name: "Uninstall Keepalived"
+  dnf:
+    name: keepalived
+    state: absent
+  when: "'lbnodes' in group_names"

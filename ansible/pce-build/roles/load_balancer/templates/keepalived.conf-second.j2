@@ -1,0 +1,18 @@
+vrrp_instance ILLUMIO_PCE  {
+  state BACKUP
+  interface {{ ansible_non_loopback_interfaces[0] }}
+  virtual_router_id 210
+  priority 100
+  unicast_src_ip {{ hostvars[groups['lbnodes'][1]]['ansible_default_ipv4']['address'] }}
+  unicast_peer {
+    {{ hostvars[groups['lbnodes'][0]]['ansible_default_ipv4']['address'] }}
+  }
+  advert_int 1
+  authentication {
+    auth_type PASS
+    auth_pass "{{ keepalived_auth }}"
+  }
+  virtual_ipaddress {
+    {{ load_balancer_ip }}
+  }
+}

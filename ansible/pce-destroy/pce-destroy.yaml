@@ -1,0 +1,26 @@
+- hosts: pce
+  become: true
+  tasks:
+
+  - name: set fact variable
+    set_fact:
+      node_type : "{{item}}"
+    when: (item in ["core0","core1","core2","core3","data0","data1"])
+    with_items: "{{hostvars[inventory_hostname]['group_names']}}"
+
+- name: "Running DESTROY tasks on {{prefix_name}}"
+
+  hosts: "{{prefix_name}}"
+  gather_facts: False
+  become: true
+
+  roles:
+    - role: pce-uninstall
+    - role: pce-unharden
+
+- name: "Run LB Uninstall"
+  become: true
+  hosts: lbnodes
+  roles:
+
+    - role: lb-uninstall

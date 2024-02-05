@@ -1,0 +1,112 @@
+---
+- name: "Startup Firewalld"
+  systemd_service:
+    name: firewalld
+    state: started
+    enabled: yes
+    masked: no
+  ignore_errors: true
+  when: "prefix_name in group_names"
+
+- name: Check for Interfaces used
+  set_fact:
+    ansible_non_loopback_interfaces: "{{ ansible_interfaces | reject('search', '^lo$') | list }}"
+
+- name: Define First interface
+  set_fact:
+    first_non_loopback_interface: "{{ ansible_non_loopback_interfaces | default([]) | first }}"
+
+- name: Configure Illumio Intra TCP Rules
+  firewalld:
+    zone: public
+    state: enabled
+    permanent: yes
+    immediate: yes
+    interface: "{{ first_non_loopback_interface }}"
+
+- name: Define Illumio ports
+  set_fact:
+    illumio_intra_ports:
+      - "3100-3600"
+      - "5100-6300"
+      - "8000-8400"
+      - "11200-11300"
+      - "24200-25300"
+
+- name: Configure Illumio Intra TCP Rules
+  firewalld:
+    zone: public
+    state: enabled
+    permanent: true
+    rich_rule: 'rule family="ipv4" priority="0" source address="{{ item.0 }}" port port="{{ item.1 }}" protocol="tcp" accept'
+  with_nested:
+    - "{{ ansible_play_batch }}"
+    - "{{ illumio_intra_ports }}"
+
+- name: Configure Illumio Intra UDP Rules
+  firewalld:
+    zone: public
+    state: enabled
+    permanent: true
+    rich_rule: 'rule family="ipv4" priority="0" source address="{{ item }}" port port="8000-8400" protocol="udp" accept'
+  with_items: "{{ ansible_play_batch }}"
+
+- name: Block other traffic to Illumio ports
+  firewalld:
+    zone: public
+    state: enabled
+    permanent: true
+    rich_rule: 'rule family="ipv4" priority="32000" source address="0.0.0.0/0" port port="{{ item.1 }}" protocol="tcp" drop'
+  with_nested:
+    - "{{ ansible_play_batch }}"
+    - "{{ illumio_intra_ports }}"
+
+- name: Add port {{ mgmt_port }} to Firewalld
+  firewalld:
+    zone: public
+    port: "{{ mgmt_port }}/tcp"
+    permanent: yes
+    state: enabled
+  when: "'corenodes' in group_names"
+
+- name: Add port {{ ven_lightning_port }} to Firewalld
+  firewalld:
+    zone: public
+    port: "{{ ven_lightning_port }}/tcp"
+    permanent: yes
+    state: enabled
+  when: "'corenodes' in group_names"
+
+- name: Reload firewalld
+  command: firewall-cmd --reload
+  ignore_errors: yes
+
+- name: "Reload Firewalld"
+  systemd_service:
+    name: firewalld
+    state: reloaded
+    enabled: yes
+  ignore_errors: true
+  when: "prefix_name in group_names"
+
+- name: "Enable conntrack in modprobe"
+  modprobe:
+    name: nf_conntrack
+    state: present
+  when: "prefix_name in group_names"
+
+- name: "Update nf_conntrack_max value"
+  shell: echo 1048576 > /proc/sys/net/nf_conntrack_max
+  when: "prefix_name in group_names"
+
+- name: "Update nf_conntrack_hashsize value"
+  shell: echo 262144 > /sys/module/nf_conntrack/parameters/hashsize
+  when: "prefix_name in group_names"
+
+- name: "Update nf_conntrack_max boot value"
+  shell: echo "net.nf_conntrack_max=1048576" > /etc/sysctl.d/illumio.conf
+  when: "prefix_name in group_names"
+
+- name: "Update nf_conntrack_hashsize boot value"
+  shell: echo "options nf_conntrack hashsize=262144" > /etc/modprobe.d/illumio.conf
+  when: "prefix_name in group_names"

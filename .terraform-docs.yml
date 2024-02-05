@@ -1,0 +1,89 @@
+formatter: "markdown table"
+version: "0.17"
+header-from: main.tf
+footer-from: ""
+recursive:
+  enabled: false
+  path: ""
+sections:
+  hide: []
+  show: []
+  hide-all: false
+  show-all: true
+content: |-
+  {{ .Requirements }}
+  ## Usage
+  ### See examples folder for full example
+  ### Basic usage of this module is as follows:
+  #### You can provide your own certs or have the module create them
+    - Follow this link for guidance on cert creation (https://my.illumio.com/apex/article?name=Preparing-Certificates-for-an-Illumio-MNC-Installation)
+  ##### If you are providing your own certs the following files need to be in the "certs" dir
+        server.crt - This is your Server certificate and Root CA/Intermediate certificates
+        server.key - Private Key for your Certificate
+        root_ca.crt - The Root CA certificate
+  ##### If you need this module to create a TLS certificate you must set the following variables
+        create_certificates = true
+        org_name = "Name of your organization"
+        cert_ca_common_name = "CN of your CA"
+        cert_ca_org = "Name of your CA organization"
+        dns_names = ["List of DNS hostnames of all Nodes in Cluster"]
+
+  ##### As you can see below there are required variables that must be set in addition to those there are a few that could be necessary for your deployment
+  ###### This module assumes you are using ssh keys, if you are not you will need to populate the following variables
+         ansible_password = "Password for your ansible_ssh_user"
+         ansible_sudo_password = "If your user requires a sudo password, suppy it here"
+  ##### Most of what you see is self explanatory but the one thing that is not that clear is a Single Node Cluster(snc0)
+  ###### If you plan to deploy a snc0 you must only include the (1) IP in
+         pce_core
+         do not put pce_data in your tf or hcl file
+  #### The admin ui password is randomly generated and should be changed once you login for the first time
+  ##### In order to retrieve the Admin UI password; issue the following command
+        terraform show -json | jq -r '.values.root_module.child_modules | .[].resources | .[] | select(.address == "module.pce_install.random_password.admin_ui").values.result
+
+  ```hcl
+  module "example" {
+  {{"\t"}} source  = "<module-path>"
+  {{- if .Module.RequiredInputs }}
+  {{"\n\t"}} # Required variables
+  {{- range .Module.RequiredInputs }}
+  {{"\t"}} {{ .Name }}  = {{ .GetValue }}
+  {{- end }}
+  {{- end }}
+  {{- if .Module.OptionalInputs }}
+  {{"\n\t"}} # Optional variables
+  {{- range .Module.OptionalInputs }}
+  {{"\t"}} {{ .Name }}  = {{ .GetValue | printf "%s" }}
+  {{- end }}
+  {{- end }}
+  }
+  ```
+  {{ .Resources }}
+  {{ .Inputs }}
+  {{ .Outputs }}
+output:
+  file: README.md
+  mode: inject
+  template: |-
+    <!-- BEGIN_AUTOMATED_TF_DOCS_BLOCK -->
+    {{ .Content }}
+    <!-- END_AUTOMATED_TF_DOCS_BLOCK -->
+output-values:
+  enabled: false
+  from: ""
+sort:
+  enabled: true
+  by: name
+settings:
+  anchor: true
+  color: true
+  default: true
+  description: true
+  escape: true
+  hide-empty: false
+  html: true
+  indent: 2
+  lockfile: true
+  read-comments: true
+  required: true
+  sensitive: true
+  type: true

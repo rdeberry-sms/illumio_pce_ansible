@@ -1,0 +1,118 @@
+- name: Gather the package facts
+  ansible.builtin.package_facts:
+    manager: auto
+  register: package_facts_result
+
+- name: Display Non-Loopback Network Interfaces
+  debug:
+    var: ansible_non_loopback_interfaces
+
+- name: Check if HAProxy package is installed
+  fail:
+    msg: "haproxy is installed. Please uninstall it before proceeding."
+  when: "'haproxy' in package_facts_result.ansible_facts.packages"
+
+- name: Check if keepalived package is installed
+  fail:
+    msg: "keepalived is installed. Please uninstall it before proceeding."
+  when: "'keepalived' in package_facts_result.ansible_facts.packages"
+
+- name: Get backend servers from inventory
+  set_fact:
+    haproxy_backend_servers: "{{ groups['corenodes'] }}"
+
+- name: Check if SELinux is enabled
+  command: getenforce
+  register: selinux_status
+  ignore_errors: true
+
+- name: Set SELinux port type if SELinux is enabled for {{ mgmt_port }} and {{ ven_lightning_port }}
+  community.general.seport:
+    ports: "{{ mgmt_port }}, {{ ven_lightning_port }}"
+    proto: tcp
+    setype: http_port_t
+  when: "'Enforcing' in selinux_status.stdout"
+  ignore_errors: true
+
+- name: Install Haproxy
+  dnf:
+    name: haproxy
+    state: present
+
+- name: Install Keepalived
+  dnf:
+    name: keepalived
+    state: present
+
+- name: Template HAProxy configuration
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+  register: haproxy_conf
+
+- name: restart haproxy service
+  systemd_service:
+    name: haproxy
+    state: restarted
+
+- name: Start and enable Haproxy service
+  systemd_service:
+    name: haproxy
+    state: started
+    enabled: yes
+    force: true
+
+
+- name: stop keepalived service
+  systemd_service:
+    name: keepalived
+    state: stopped
+  ignore_errors: true
+
+- name: Template Keepalived configuration for first node
+  template:
+    src: keepalived.conf-first.j2
+    dest: /etc/keepalived/keepalived.conf
+  when: "inventory_hostname == groups['lbnodes'][0]"
+  vars:
+    ansible_non_loopback_interfaces: "{{ ansible_interfaces | reject('search', '^lo$') | list }}"
+
+- name: Template Keepalived configuration for second node
+  template:
+    src: keepalived.conf-second.j2
+    dest: /etc/keepalived/keepalived.conf
+  when: "inventory_hostname == groups['lbnodes'][1]"
+  vars:
+    ansible_non_loopback_interfaces: "{{ ansible_interfaces | reject('search', '^lo$') | list }}"
+
+- name: Start and enable KeepAlived service
+  systemd_service:
+    name: keepalived
+    state: started
+    enabled: yes
+    force: true
+  ignore_errors: true
+
+- name: Add port {{ mgmt_port }} to Firewalld
+  firewalld:
+    zone: public
+    port: "{{ mgmt_port }}/tcp"
+    permanent: yes
+    state: enabled
+
+- name: Add port {{ ven_lightning_port }} to Firewalld
+  firewalld:
+    zone: public
+    port: "{{ ven_lightning_port }}/tcp"
+    permanent: yes
+    state: enabled
+
+
+- name: "Start firewalld service"
+  service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Reload Firewalld
+  command: firewall-cmd --reload

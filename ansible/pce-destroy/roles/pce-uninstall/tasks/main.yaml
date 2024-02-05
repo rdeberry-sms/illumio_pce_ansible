@@ -1,0 +1,40 @@
+---
+
+- name: "Stopping PCE"
+  command: illumio-pce-ctl stop
+  become: true
+  become_user: ilo-pce
+  ignore_errors: true
+  when: "prefix_name in group_names"
+
+
+- name: "Uninstall the UI RPM"
+  dnf:
+    name: illumio-pce-ui
+    state: absent
+  when: "prefix_name in group_names and 'corenodes' in group_names"
+
+
+- name: "Uninstall the PCE RPM"
+  dnf:
+    name: illumio-pce
+    state: absent
+  when: "prefix_name in group_names"
+
+
+- name: "Clean up directories"
+  file:
+    path: "{{item}}"
+    state: absent
+  with_items:
+   - /var/lib/illumio-pce/
+   - /var/log/illumio-pce/
+   - /etc/illumio-pce
+   - /opt/illumio-pce
+  when: "prefix_name in group_names"
+  ignore_errors: true
+
+- name: "Copy Backup /etc/hosts"
+  command: cp /etc/hosts.bak /etc/hosts
+  when: "prefix_name in group_names"
+  ignore_errors: true

@@ -1,0 +1,297 @@
+---
+- name: Run fips-mode-setup --check
+  command: fips-mode-setup --check
+  register: fips_check_result
+  changed_when: false
+  ignore_errors: true
+
+- name: Disable FIPS mode if enabled
+  command: fips-mode-setup --disable
+  when: "'FIPS mode is disabled.' not in fips_check_result.stdout"
+  register: disable_fips
+  changed_when: disable_fips.rc == 0
+
+- name: Reboot if FIPS mode was disabled
+  reboot:
+    reboot_timeout: 300
+  when: disable_fips.changed
+  async: 0
+  poll: 0
+  become: yes
+
+- name: Wait for the system to come back after reboot
+  wait_for_connection:
+    timeout: 300
+
+- name: Check if illumio-pce RPM is installed
+  yum:
+    list: illumio-pce
+  register: result
+  when: "prefix_name in group_names"
+
+- name: Fail build if existing install exists
+  fail:
+    msg: "PCE package already installed"
+  when: "prefix_name in group_names and result.results | length > 0"
+
+
+- name: "Configure Kernel Parameters on Core Nodes"
+  copy:
+    dest: /etc/sysctl.d/99-illumio.conf
+    content: |
+      fs.file-max          = 2000000
+      net.core.somaxconn   = 16384
+  when: "'corenodes' in group_names"
+
+- name: "Apply kernel configuration to Core Nodes"
+  command: sysctl -p /etc/sysctl.d/99-illumio.conf
+  when: "'corenodes' in group_names"
+
+- name: "Configure Kernel Parameters on Data Nodes"
+  copy:
+    dest: /etc/sysctl.d/99-illumio.conf
+    content: |
+      fs.file-max          = 2000000
+      vm.overcommit_memory = 1
+  when: "'datanodes' in group_names"
+
+- name: "Apply kernel configuration to Data Nodes"
+  command: sysctl -p /etc/sysctl.d/99-illumio.conf
+  when: "'datanodes' in group_names"
+
+- name: "Apply Conntrack Hashsize to kernel module"
+  command: echo "options nf_conntrack hashsize=262144" > /etc/modprobe.d/illumio.conf
+  when: "'corenodes' in group_names"
+
+- name: "Copy rpm to PCE"
+  copy:
+      src: "{{ playbook_dir }}/../../packages/{{pce_rpm_software}}"
+      dest: /tmp/
+  when: "prefix_name in group_names"
+
+
+- name: "Copy rpm UI to PCE"
+  copy:
+      src: "{{ playbook_dir }}/../../packages/{{pce_ui_rpm_software}}"
+      dest: /tmp/
+  when: "'corenodes' in group_names and pce_ui_rpm_software != ''"
+
+
+- name: "Install PCE rpm - {{pce_rpm_software}}"
+  yum:
+      name: /tmp/{{pce_rpm_software}}
+      state: present
+      disable_gpg_check: yes
+  when: "prefix_name in group_names"
+
+
+- name: "Install PCE UI rpm - {{pce_ui_rpm_software}}"
+  yum:
+      name: /tmp/{{pce_ui_rpm_software}}
+      state: present
+      disable_gpg_check: yes
+  when: "prefix_name in group_names and 'corenodes' in group_names"
+
+
+- name: "Clean up RPM package"
+  file:
+      path: "/tmp/{{pce_rpm_software}}"
+      state: absent
+  when: "prefix_name in group_names and pce_rpm_software != ''"
+
+
+- name: "Clean up UI RPM package"
+  file:
+      path: "/tmp/{{pce_ui_rpm_software}}"
+      state: absent
+  when: "prefix_name in group_names and pce_ui_rpm_software != ''"
+
+
+- name: Check if the directory exists
+  stat:
+    path: "{{data_dir}}"
+  register: dir_check
+  when: "'datanodes' in group_names"
+  ignore_errors: true
+
+- name: Create the directory if it doesn't exist
+  file:
+    path: "{{data_dir}}"
+    state: directory
+    group: ilo-pce
+    owner: ilo-pce
+  when: "'datanodes' in group_names and not dir_check.stat.exists"
+
+
+- name: "Copy private key to /var/lib/illumio-pce/cert/"
+  copy:
+      src: "{{ playbook_dir }}/../../certs/{{ machine_private_key }}"
+      dest: /var/lib/illumio-pce/cert/
+      owner: ilo-pce
+      group: ilo-pce
+      mode: 0400
+  when: "prefix_name in group_names"
+
+
+- name: "Copy cert bundle to /var/lib/illumio-pce/cert/"
+  copy:
+      src: "{{ playbook_dir }}/../../certs/{{ machine_cert }}"
+      dest: /var/lib/illumio-pce/cert/
+      owner: ilo-pce
+      group: ilo-pce
+      mode: 0440
+  when: "prefix_name in group_names"
+
+
+- name: "Copy runtime_env.yml template to PCE"
+  template:
+      src: runtime_env.yml.j2
+      dest: /etc/illumio-pce/runtime_env.yml
+      owner: ilo-pce
+      group: ilo-pce
+  when: "prefix_name in group_names"
+
+- name: "Update Data node limits"
+  copy:
+    dest: /etc/systemd/system/illumio-pce.service.d/override.conf
+    content: |
+      [Service]
+      LimitCORE=0
+      LimitNOFILE=65535
+      LimitNPROC=65535
+  when: "prefix_name in group_names"
+
+- name: Reload systemd
+  systemd:
+    name: ""
+    state: reloaded
+
+- name: "Running illumio-pce-env check before starting cluster"
+  ansible.builtin.command:
+    cmd: sudo -u ilo-pce /opt/illumio-pce/illumio-pce-env check
+  when: "prefix_name in group_names"
+  ignore_errors: false
+  retries: 0
+
+
+- name: "Running sudo -u ilo-pce /opt/illumio-pce/illumio-pce-ctl status to check runlevel"
+  ansible.builtin.command:
+    cmd: sudo -u ilo-pce /opt/illumio-pce/illumio-pce-ctl status -x
+  register: pce_status
+  failed_when: pce_status.rc > 3
+  when: "prefix_name in group_names"
+
+
+- name: "Start Illumio PCE"
+  ansible.builtin.command:
+    cmd: sudo -u ilo-pce /opt/illumio-pce/illumio-pce-ctl start --runlevel 1
+  register: command_result
+  until: command_result == 0
+  failed_when: command_result.rc == 1
+  retries: 0
+  when: "prefix_name in group_names and pce_status.rc == 3"
+  ignore_errors: false
+
+- name: "Restart stalled node"
+  ansible.builtin.command:
+    cmd: sudo -u ilo-pce /opt/illumio-pce/illumio-pce-ctl restart -r 1
+  register: command_result
+  until: command_result.rc == 0
+  when: "prefix_name in group_names"
+
+- name: "Wait for the PCE to start to runlevel 1"
+  ansible.builtin.command:
+    cmd: sudo -u ilo-pce /opt/illumio-pce/illumio-pce-ctl status -w 360
+  register: pce_status2
+  until: pce_status2.rc == 1
+  failed_when: pce_status2.rc > 3
+  retries: 0
+  when: "prefix_name in group_names"
+
+- name: "Setting up DB with illumio-pce-db-management"
+  ansible.builtin.command:
+    cmd: sudo -u ilo-pce /opt/illumio-pce/illumio-pce-db-management setup
+  register: command_result
+  until: command_result == 0
+  failed_when: command_result == 1
+  retries: 0
+  when: "prefix_name in group_names and node_type in ['core0', 'snc0']"
+
+
+- name: "Bringing the PCE to run-level 5"
+  ansible.builtin.command:
+    cmd: sudo -u ilo-pce /opt/illumio-pce/illumio-pce-ctl set-runlevel 5
+  register: command_result
+  until: command_result.rc == 0
+  failed_when: command_result.rc == 1
+  when: "prefix_name in group_names and node_type in ['core0', 'snc0']"
+
+- name: "Waiting for Cluster Status to reach run-level 5"
+  ansible.builtin.command:
+    cmd: sudo -u ilo-pce /opt/illumio-pce/illumio-pce-ctl cluster-status -w 180
+  register: cluster_status
+  until: cluster_status.rc == 0
+  failed_when: cluster_status.rc > 2
+  retries: 0
+  when: "prefix_name in group_names"
+
+- name: "Creating org and adding first user with illumio-pce-db-management"
+  ansible.builtin.command:
+    cmd: sudo -u ilo-pce ILO_PASSWORD='{{pce_ui_password}}' /opt/illumio-pce/illumio-pce-db-management create-domain --user-name {{pce_ui_username}} --full-name '{{pce_ui_fullname}}' --org-name '{{org_name}}'
+  register: create_domain_result
+  failed_when:
+    create_domain_result.rc != 0 and 'Org already exists' not in create_domain_result.stdout
+  when: "prefix_name in group_names and node_type in ['core0', 'snc0']"
+
+- name: Check status of the service
+  systemd_service:
+    name: fapolicyd
+    state: started
+  register: fapolicyd_status
+
+- name: Add ilocron dir to trusted fapolicy list
+  ansible.builtin.command:
+    cmd: fapolicyd-cli --file add /var/lib/illumio-pce/tmp/config/ilocron/ilocron/ --trust-file illumio
+  when: "fapolicyd_status.state == 'started'"
+  ignore_errors: true
+
+- name: Add ilocron dir to trusted fapolicy list
+  ansible.builtin.command:
+    cmd: fapolicyd-cli --update
+  when: "fapolicyd_status.state == 'started'"
+  ignore_errors: true
+
+- name: Append text to a file
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    line: "user ilo-pce"
+    insertafter: EOF
+
+- name: Change ownership of /run/chrony
+  ansible.builtin.file:
+    path: /run/chrony
+    owner: ilo-pce
+    group: ilo-pce
+    recurse: yes
+
+- name: "Restart Chronyd"
+  systemd_service:
+    name: chronyd
+    state: restarted
+    enabled: yes
+    masked: no
+
+- name: Enable FIPS mode
+  ansible.builtin.command:
+    cmd: sudo fips-mode-setup --enable
+
+- name: Reboot if FIPS mode was disabled
+  reboot:
+    reboot_timeout: 300
+  async: 0
+  poll: 0
+  become: yes
+
+- name: Wait for the system to come back after reboot
+  wait_for_connection:
+    timeout: 300

@@ -1,0 +1,91 @@
+---
+- name: "Setting preparatory facts"
+  max_fail_percentage: 10
+  hosts: pce
+  become: true
+  tasks:
+
+  - name: "set fact variable - node type"
+    set_fact:
+      node_type : "{{item}}"
+      cacheable: true
+    when: "(item in ['core0','core1','core2','core3','data0','data1'])"
+    with_items: "{{hostvars[inventory_hostname]['group_names']}}"
+
+  - name: "set fact variable - PCE name"
+    set_fact:
+      pce_name: "{{item}}"
+      cacheable: true
+    with_items: "{{hostvars[inventory_hostname]['group_names']}}"
+
+  - name: "Set fact variable - node class 'core'"
+    set_fact:
+      node_class: "core"
+      cacheable: true
+    when: (item in ["core0","core1","core2","core3"])
+    with_items: "{{hostvars[inventory_hostname]['group_names']}}"
+
+  - name: "Set fact variable - node class 'data'"
+    set_fact:
+      node_class: "{{item}}"
+      cacheable: true
+    when: (item in ["data0","data1"])
+    with_items: "{{hostvars[inventory_hostname]['group_names']}}"
+
+  - name: "Checking PCE cluster makeup for type definition"
+    run_once: true
+    set_fact:
+      node_count: "{{ groups[prefix_name] |length }}"
+      cacheable: true
+
+  - name: "Set cluster type 2x2 based on group membership counts"
+    set_fact:
+      cluster_type: "4node_v0"
+      cacheable: true
+    run_once: true
+    when: node_count == '4'
+
+  - name: "Set additional variable if 4 nodes and memory below 64GB"
+    set_fact:
+      cluster_type: "4node_v0_small"
+      cacheable: true
+    run_once: true
+    when:
+      - node_count == '4'
+      - ansible_memtotal_mb < 64000
+
+  - name: "Set cluster type as 4x2 based on group membership counts"
+    set_fact:
+      cluster_type: "6node_v0"
+      cacheable: true
+    run_once: true
+    when: node_count == '6'
+
+
+  - name: "Set cluster type SNC based on group membership counts"
+    set_fact:
+      node_class: "snc0"
+      cacheable: true
+    run_once: true
+    when: node_count == '1'
+
+
+- name: "Running BUILD task on {{prefix_name}}"
+  max_fail_percentage: 10
+  become: true
+  hosts: "lbnodes"
+  roles:
+
+    - role: load_balancer
+      when: create_lb | bool and "'lbnodes' in group_names"
+
+
+- name: "Running BUILD task on {{prefix_name}}"
+  max_fail_percentage: 10
+  become: true
+  hosts: "{{prefix_name}}"
+  roles:
+
+  - role: common
+  - role: pce-harden
+  - role: pce

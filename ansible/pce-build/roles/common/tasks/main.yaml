@@ -1,0 +1,134 @@
+---
+- name: Set Hostname for LB VIP
+  set_fact:
+    new_hostname: "{{ set_hostname.lb_vip.host_name }}"
+  when: inventory_hostname == set_hostname.lb_vip.ip_address
+
+- name: Execute command to set hostname for LB VIP
+  command: hostnamectl set-hostname "{{ new_hostname }}"
+  when: inventory_hostname == set_hostname.lb_vip.ip_address
+
+- name: Set Hostnames for LB Nodes
+  command: hostnamectl set-hostname "{{ item.key }}"
+  with_items: "{{ set_hostname.pce_lb_nodes | dict2items }}"
+  when: inventory_hostname == item.value
+
+- name: Set Hostnames for Core Nodes
+  command: hostnamectl set-hostname "{{ item.key }}"
+  with_items: "{{ set_hostname.pce_core_nodes | dict2items }}"
+  when: inventory_hostname == item.value
+
+- name: Set Hostnames for Data Nodes
+  command: hostnamectl set-hostname "{{ item.key }}"
+  with_items: "{{ set_hostname.pce_data_nodes | dict2items }}"
+  when: inventory_hostname == item.value
+
+
+- name: "Backup original /etc/hosts"
+  command: cp /etc/hosts /etc/hosts.bak
+  when: "prefix_name in group_names"
+  ignore_errors: true
+
+- name: "Copy Hosts file to each Hosts"
+  copy:
+    src: "{{ playbook_dir }}/../../working/hosts.txt"
+    dest: /etc/hosts
+  when: "prefix_name in group_names"
+  ignore_errors: true
+
+- name: "Check for and install dependencies"
+  yum:
+    state: present
+    name: ["coreutils","findutils","net-tools","procps","gawk","grep","util-linux-ng","sed","sudo","glibc","libgcc","libstdc++","ncurses-libs","zlib"]
+  when: "prefix_name in group_names"
+
+
+- name: "Install tools and required packages"
+  yum:
+      state: present
+      name: ["postfix","logrotate","net-tools"]
+  when: "prefix_name in group_names"
+  retries: 5
+
+- name: Download EPEL GPG key.
+  get_url:
+    url: https://download.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-8
+    dest: /etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-8
+  retries: 5
+
+- name: Import EPEL GPG key.
+  rpm_key:
+    key: /etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-8
+    state: present
+  retries: 5
+
+
+- name: Install EPEL repo.
+  retries: 5
+  yum:
+    name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-{{ ansible_distribution_major_version }}.noarch.rpm
+    state: present
+
+- name: Set the locale
+  command: localectl set-locale {{ desired_locale }}
+  when: "prefix_name in group_names"
+  become: yes
+
+
+- name: "Stop iptables service"
+  service:
+    name: iptables
+    state: stopped
+    enabled: false
+  ignore_errors: True
+  when: "prefix_name in group_names"
+
+#- name: "Stop firewalld service"
+#  service:
+#    name: firewalld
+#    state: stopped
+#    enabled: false
+#  ignore_errors: True
+#  when: "prefix_name in group_names"
+
+
+- name: "Stop firewalld service"
+  service:
+    name: firewalld
+    state: started
+    enabled: false
+  ignore_errors: True
+  when: "prefix_name in group_names"
+
+- name: "Configure Alias File"
+  blockinfile:
+      dest: /etc/profile.d/global_aliases.sh
+      create: yes
+      block: |
+        # Illumio-specific aliases and functions
+        alias pce_env_check="sudo -u ilo-pce /opt/illumio-pce/illumio-pce-env check"
+        alias pce_ctl="sudo -u ilo-pce /opt/illumio-pce/illumio-pce-ctl"
+        alias pce_db="sudo -u ilo-pce /opt/illumio-pce/illumio-pce-db-management"
+  when: "prefix_name in group_names"
+
+
+- name: "Copy bundle to /etc/pki/ca-trust/source/anchors/"
+  copy:
+      src: "{{ playbook_dir }}/../../certs/{{ root_ca_cert }}"
+      dest: /etc/pki/ca-trust/source/anchors/
+      mode: 0400
+  when: "prefix_name in group_names and root_ca_cert != ''"
+  ignore_errors: true
+
+- name: "update-ca-trust force-enable"
+  command: update-ca-trust force-enable
+  when: "prefix_name in group_names and root_ca_cert != ''"
+
+- name: "update-ca-trust extract"
+  command: update-ca-trust extract
+  when: "prefix_name in group_names and root_ca_cert != ''"
+
+- name: "Remove Root CA"
+  command: "rm -f /etc/pki/ca-trust/source/anchors/{{ root_ca_cert }}"
+  when: "prefix_name in group_names and root_ca_cert != ''"
+  ignore_errors: true
