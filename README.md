@@ -57,7 +57,11 @@ module "example" {
   "ANSIBLE_DEPRECATION_WARNINGS": "True",
   "ANSIBLE_HOST_KEY_CHECKING": "False",
   "ANSIBLE_STDOUT_CALLBACK": "default",
+  "display_skipped_hosts": "no",
+  "fact_caching_timeout": "86400",
+  "gathering": "smart",
   "host_hey_checking": "False",
+  "pipelining": "True",
   "remote_tmp": "/tmp/"
 }
 	 ansible_password  = ""
@@ -106,6 +110,7 @@ module "example" {
 | [local_file.cert](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file) | resource |
 | [local_file.cert_key](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file) | resource |
 | [local_file.etc_hosts](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file) | resource |
+| [local_file.full_cert](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file) | resource |
 | [local_file.root_ca_crt](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file) | resource |
 | [null_resource.ansible_apply](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [random_password.admin_ui](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
@@ -120,7 +125,7 @@ module "example" {
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_ansible_environment_vars"></a> [ansible\_environment\_vars](#input\_ansible\_environment\_vars) | Environment Variables for Ansible | `map(string)` | <pre>{<br>  "ANSIBLE_DEPRECATION_WARNINGS": "True",<br>  "ANSIBLE_HOST_KEY_CHECKING": "False",<br>  "ANSIBLE_STDOUT_CALLBACK": "default",<br>  "host_hey_checking": "False",<br>  "remote_tmp": "/tmp/"<br>}</pre> | no |
+| <a name="input_ansible_environment_vars"></a> [ansible\_environment\_vars](#input\_ansible\_environment\_vars) | Environment Variables for Ansible | `map(string)` | <pre>{<br>  "ANSIBLE_DEPRECATION_WARNINGS": "True",<br>  "ANSIBLE_HOST_KEY_CHECKING": "False",<br>  "ANSIBLE_STDOUT_CALLBACK": "default",<br>  "display_skipped_hosts": "no",<br>  "fact_caching_timeout": "86400",<br>  "gathering": "smart",<br>  "host_hey_checking": "False",<br>  "pipelining": "True",<br>  "remote_tmp": "/tmp/"<br>}</pre> | no |
 | <a name="input_ansible_password"></a> [ansible\_password](#input\_ansible\_password) | Password of ansible user | `string` | `""` | no |
 | <a name="input_ansible_ssh_user"></a> [ansible\_ssh\_user](#input\_ansible\_ssh\_user) | Name of user to use for ansible | `string` | n/a | yes |
 | <a name="input_ansible_sudo_password"></a> [ansible\_sudo\_password](#input\_ansible\_sudo\_password) | Password of ansible user | `string` | `""` | no |

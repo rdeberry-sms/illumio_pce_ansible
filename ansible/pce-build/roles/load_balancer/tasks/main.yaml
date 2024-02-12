@@ -39,6 +39,14 @@
     name: haproxy
     state: present
 
+- name: "Copy Full cert to Haproxy folder"
+  copy:
+      src: "{{ full_cert }}"
+      dest: /etc/haproxy/
+      owner: haproxy
+      group: haproxy
+      mode: 0660
+
 - name: Install Keepalived
   dnf:
     name: keepalived
@@ -61,7 +69,6 @@
     state: started
     enabled: yes
     force: true
-
 
 - name: stop keepalived service
   systemd_service:
@@ -107,6 +114,12 @@
     permanent: yes
     state: enabled
 
+- name: Add port 443 to Firewalld
+  firewalld:
+    zone: public
+    port: "443/tcp"
+    permanent: yes
+    state: enabled
 
 - name: "Start firewalld service"
   service:

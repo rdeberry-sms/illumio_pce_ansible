@@ -8,6 +8,8 @@ build/
 */build/
 out/
 examples/
+packages/
+certs/
 # vscode
 .vscode/*
 !.vscode/settings.json

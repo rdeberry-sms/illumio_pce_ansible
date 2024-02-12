@@ -69,12 +69,6 @@
     name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-{{ ansible_distribution_major_version }}.noarch.rpm
     state: present
 
-- name: Set the locale
-  command: localectl set-locale {{ desired_locale }}
-  when: "prefix_name in group_names"
-  become: yes
-
-
 - name: "Stop iptables service"
   service:
     name: iptables
@@ -83,16 +77,7 @@
   ignore_errors: True
   when: "prefix_name in group_names"
 
-#- name: "Stop firewalld service"
-#  service:
-#    name: firewalld
-#    state: stopped
-#    enabled: false
-#  ignore_errors: True
-#  when: "prefix_name in group_names"
-
-
-- name: "Stop firewalld service"
+- name: "Start firewalld service"
   service:
     name: firewalld
     state: started

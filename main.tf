@@ -52,14 +52,20 @@ resource "local_file" "ansible_vars" {
       create_lb             = var.create_lb
       keepalived_auth       = length(random_string.keepalived) > 0 ? random_string.keepalived[0].result : ""
       set_hostname          = local.set_hostname
+      full_cert             = local_file.full_cert.filename
   })
   provisioner "local-exec" {
     environment = {
-      ANSIBLE_HOST_KEY_CHECKING    = "False",
-      ANSIBLE_DEPRECATION_WARNINGS = "True",
-      ANSIBLE_STDOUT_CALLBACK      = "default",
+      ANSIBLE_HOST_KEY_CHECKING    = "False"
+      ANSIBLE_DEPRECATION_WARNINGS = "True"
+      ANSIBLE_STDOUT_CALLBACK      = "default"
       host_hey_checking            = "False"
       remote_tmp                   = "/tmp/"
+      gathering                    = "smart"
+      fact_caching_timeout         = "86400"
+      pipelining                   = "True"
+      display_skipped_hosts        = "no"
+
 
     }
     when    = destroy
@@ -81,6 +87,13 @@ resource "local_file" "ansible_hosts" {
     }
   )
 }
+
+resource "local_file" "full_cert" {
+  content         = join("", [file("${path.cwd}/certs/${var.cert_filename}"), file("${path.cwd}/certs/${var.cert_key_filename}")])
+  filename        = "${path.cwd}/certs/fullcert.pem"
+  file_permission = var.file_perms
+}
+
 
 locals {
   set_hostname = {

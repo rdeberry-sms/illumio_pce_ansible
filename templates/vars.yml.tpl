@@ -29,9 +29,10 @@
     "backup_location" : "/tmp",
     "ansible_password" : "${ansible_password}",
     "ansible_sudo_pass" : "${ansible_sudo_password}",
-        "ansible_become_password" : "${ansible_sudo_password}",
+    ansible_become_password" : "${ansible_sudo_password}",
     "desired_locale" : "en_US.UTF-8",
     "create_lb" : "${create_lb}",
+    "full_cert" : "${full_cert}",
     "keepalived_auth" : "${keepalived_auth}",
     "set_hostname": {
         "lb_vip": ${jsonencode(set_hostname.lb_vip)},

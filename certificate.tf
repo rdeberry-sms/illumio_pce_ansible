@@ -57,7 +57,6 @@ resource "local_file" "cert" {
   content         = join("", [tls_locally_signed_cert.cm_internal[0].cert_pem, tls_self_signed_cert.cm_ca[0].cert_pem])
   filename        = "${path.cwd}/certs/${var.cert_filename}"
   file_permission = var.file_perms
-
 }
 
 resource "local_file" "cert_key" {

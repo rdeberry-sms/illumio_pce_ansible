@@ -195,7 +195,11 @@ variable "ansible_environment_vars" {
     ANSIBLE_DEPRECATION_WARNINGS = "True",
     ANSIBLE_STDOUT_CALLBACK      = "default",
     host_hey_checking            = "False",
-    remote_tmp                   = "/tmp/"
+    remote_tmp                   = "/tmp/",
+    gathering                    = "smart",
+    fact_caching_timeout         = "86400",
+    pipelining                   = "True",
+    display_skipped_hosts        = "no"
   }
 }
 

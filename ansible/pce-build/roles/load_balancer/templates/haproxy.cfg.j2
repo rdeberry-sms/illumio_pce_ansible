@@ -18,8 +18,9 @@ defaults
   timeout server 50000
 
 frontend mgmt_port_fe
-  bind *:{{ mgmt_port }}
-  mode tcp
+  bind *:443 ssl crt /etc/haproxy/fullcert.pem
+  bind *:{{ mgmt_port }} ssl crt /etc/haproxy/fullcert.pem
+  mode http
   default_backend mgmt_port_be
 
 frontend ven_lightning_port_fe
@@ -29,9 +30,11 @@ frontend ven_lightning_port_fe
 
 backend mgmt_port_be
   balance roundrobin
-  mode tcp
+  mode http
+  option httpchk GET /api/v2/node_available
+  http-check expect status 200
 {% for server in haproxy_backend_servers %}
-  server {{ server }} {{ server }}:{{ mgmt_port }} check
+  server {{ server }} {{ server }}:{{ mgmt_port }} check ssl verify none
 {% endfor %}
 backend ven_lightning_port_be
   balance roundrobin
