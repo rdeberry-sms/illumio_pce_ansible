@@ -11,11 +11,11 @@ global
 defaults
   log global
   mode http
-  option tcplog
+  option httplog
   option dontlognull
-  timeout connect 5000
-  timeout client 50000
-  timeout server 50000
+  timeout connect 60s
+  timeout client 60s
+  timeout server 60s
 
 frontend mgmt_port_fe
   bind *:443 ssl crt /etc/haproxy/fullcert.pem

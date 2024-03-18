@@ -33,8 +33,33 @@
    - /opt/illumio-pce
   when: "prefix_name in group_names"
   ignore_errors: true
+  retries: 5
 
 - name: "Copy Backup /etc/hosts"
   command: cp /etc/hosts.bak /etc/hosts
   when: "prefix_name in group_names"
   ignore_errors: true
+
+- name: Revert Kernel Parameters Configuration on Core Nodes
+  file:
+    path: /etc/sysctl.d/99-illumio.conf
+    state: absent
+  when: "'corenodes' in group_names"
+
+- name: Revert Kernel Parameters Configuration on Data Nodes
+  file:
+    path: /etc/sysctl.d/99-illumio.conf
+    state: absent
+  when: "'datanodes' in group_names"
+
+- name: Revert Conntrack Hashsize Configuration
+  file:
+    path: /etc/modprobe.d/illumio.conf
+    state: absent
+  when: "'corenodes' in group_names"
+
+- name: Revert Illumio limits
+  file:
+    path: /etc/systemd/system/illumio-pce.service.d/override.conf
+    state: absent
+  when: "prefix_name in group_names"

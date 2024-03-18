@@ -58,6 +58,23 @@
     dest: /etc/haproxy/haproxy.cfg
   register: haproxy_conf
 
+- name: Copy haproxy configuration to /etc/rsyslog.d/haproxy.conf
+  ansible.builtin.copy:
+    content: |
+      $AddUnixListenSocket /var/lib/haproxy/dev/log
+      if $programname startswith 'haproxy' then /var/log/haproxy.log
+      &~
+    dest: /etc/rsyslog.d/69-haproxy.conf
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+
+- name: restart rsyslog service
+  systemd_service:
+    name: rsyslog
+    state: restarted
+
 - name: restart haproxy service
   systemd_service:
     name: haproxy

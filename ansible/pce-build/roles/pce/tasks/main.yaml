@@ -1,28 +1,4 @@
 ---
-- name: Run fips-mode-setup --check
-  command: fips-mode-setup --check
-  register: fips_check_result
-  changed_when: false
-  ignore_errors: true
-
-- name: Disable FIPS mode if enabled
-  command: fips-mode-setup --disable
-  when: "'FIPS mode is disabled.' not in fips_check_result.stdout"
-  register: disable_fips
-  changed_when: disable_fips.rc == 0
-
-- name: Reboot if FIPS mode was disabled
-  reboot:
-    reboot_timeout: 300
-  when: disable_fips.changed
-  async: 0
-  poll: 0
-  become: yes
-
-- name: Wait for the system to come back after reboot
-  wait_for_connection:
-    timeout: 300
-
 - name: Check if illumio-pce RPM is installed
   yum:
     list: illumio-pce
@@ -151,7 +127,7 @@
       group: ilo-pce
   when: "prefix_name in group_names"
 
-- name: "Update Data node limits"
+- name: "Update node limits"
   copy:
     dest: /etc/systemd/system/illumio-pce.service.d/override.conf
     content: |
@@ -232,7 +208,7 @@
   register: cluster_status
   until: cluster_status.rc == 0
   failed_when: cluster_status.rc > 2
-  retries: 0
+  retries: 3
   when: "prefix_name in group_names"
 
 - name: "Creating org and adding first user with illumio-pce-db-management"
@@ -248,6 +224,7 @@
     name: fapolicyd
     state: started
   register: fapolicyd_status
+  ignore_errors: true
 
 - name: Add ilocron dir to trusted fapolicy list
   ansible.builtin.command:
@@ -280,6 +257,32 @@
     state: restarted
     enabled: yes
     masked: no
+
+- name: "Copy PCE backup script"
+  template:
+      src: pcebackup
+      dest: /opt/illumio-pce/illumio/scripts/pcebackup
+      owner: ilo-pce
+      group: ilo-pce
+      mode: 0600
+  when: "prefix_name in group_names"
+
+
+- name: Create the directory if it doesn't exist
+  file:
+    path: "/var/lib/illumio-pce/backup"
+    state: directory
+    group: ilo-pce
+    owner: ilo-pce
+
+- name: Add daily policy database backup cron job to a specific user
+  cron:
+    name: "Daily policy PCE backup"
+    minute: "30"
+    hour: "1"
+    job: "/opt/illumio-pce/illumio/scripts/pcebackup -d /var/lib/illumio-pce/backup"
+    user: "root"
+  when: "prefix_name in group_names"
 
 - name: Enable FIPS mode
   ansible.builtin.command:

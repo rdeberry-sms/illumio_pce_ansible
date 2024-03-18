@@ -1,0 +1,155 @@
+#!/bin/bash
+
+BASEDIR=$(dirname $0)
+PROG=$(basename $0)
+DTE=$(date '+%Y%m%d.%H%M%S')
+HOSTNAME=$(hostname)
+LOGFILE=""
+VERSION_BUILD=""
+REDIS_IP=""
+datetime=$(date +"%Y-%m-%d_%H-%M-%S")
+files=(
+    "/var/lib/illumio-pce/cert/server.crt"
+    "/var/lib/illumio-pce/cert/server.key"
+    "/etc/illumio-pce/runtime_env.yml"
+)
+
+log_print() {
+   LOG_DTE=$(date '+%Y-%m-%d %H:%M:%S')
+   echo "$LOG_DTE $1 $2"
+   echo "$LOG_DTE $1 $2" >> $LOGFILE
+}
+
+get_version_build() {
+   PVFILE="sudo -u ilo-pce cat /opt/illumio-pce/illumio/product_version.yml"
+   VERSION=$($PVFILE | grep version: | awk '{print $2}')
+   BUILD=$($PVFILE | grep build: | awk '{print $2}')
+   VERSION_BUILD="$VERSION-$BUILD"
+}
+
+is_redis_server() {
+   REDIS_IP=$(sudo -u ilo-pce illumio-pce-ctl cluster-status | grep agent_traffic_redis_server | awk '{ print $2}')
+   [ $(echo $(ip addr | grep -F $REDIS_IP | wc -l)) -gt 0 ] && return 0 || return 1
+}
+
+is_db_master() {
+   REDIS=$(sudo -u ilo-pce illumio-pce-ctl cluster-status | grep agent_traffic_redis_server | awk '{ print $2}')
+   DBMASTER=$(sudo -u ilo-pce illumio-pce-db-management show-primary | grep -c 'Database Primary Node IP address[^0-9]')
+   [ $DBMASTER -gt 0 ] && return 1 || return 0
+}
+
+usage() {
+   echo
+   echo "Usage: $0 -d <directory location> [-r retention_period] [-i SSH key file] [-u remote_user] [-h remote_host] [-p remote_path]"
+   echo "  -d PCE backup direction location"
+   echo "  -r Database backup retention period"
+   echo "     Default is $RETENTION days"
+   echo "  -i SSH key file."
+   echo "     Default is ~/.ssh/id_rsa"
+   echo "  -u SCP remote user"
+   echo "  -h SCP remote host"
+   echo "  -p SCP remote destination path"
+   echo
+   exit 1
+}
+
+pce_dbdump() {
+   local backup_file=$1
+   local backup_type=$2
+   log_print "INFO" "Dumpfile: $backup_file"
+
+   if [ $backup_type = "policydb" ]; then
+      log_print "INFO" "Backing up the policy database"
+      sudo -u ilo-pce illumio-pce-db-management dump --file $backup_file >> $LOGFILE
+   elif [ $backup_type = "trafficdb" ]; then
+      log_print "INFO" "Backing up the traffic database"
+      sudo -u ilo-pce illumio-pce-db-management traffic dump --file $backup_file >> $LOGFILE
+   fi
+
+   [ $? -gt 0 ] && log_print "ERROR" "Database backup failed!"
+}
+
+scp_remote_host() {
+   local dump_file="$1"
+   local ssh_key="$2"
+   local remote_user="$3"
+   local remote_host="$4"
+   local remote_path="$5"
+
+   log_print "INFO" "SCPing to remote host $remote_host "
+   log_print "INFO" "scp -i $ssh_key $dump_file $remote_user@$remote_host:$remote_path/."
+   scp -i $ssh_key "$dump_file" "$remote_user@$remote_host:$remote_path/."
+}
+
+backup_files() {
+    mkdir -p "$DUMPDIR" || { log_print "ERROR" "Failed to create directory $DUMPDIR"; exit 1; }
+    datetime=$(date +"%Y-%m-%d_%H-%M-%S")
+    backup_file="$DUMPDIR/pce_backup_$datetime.tar.gz"
+    tar -czf "$backup_file" -P "${@}" || { log_print "ERROR" "Failed to create backup archive"; exit 1; }
+    log_print "INFO" "Backup created successfully: $backup_file"
+}
+
+# Main Program
+
+while getopts ":d:r:i:u:h:p:" opt; do
+   case $opt in
+      d) DUMPDIR="$OPTARG";;
+      r) RETENTION="$OPTARG";;
+      i) SSHKEY="$OPTARG";;
+      u) RMTUSER="$OPTARG";;
+      h) RMTHOST="$OPTARG";;
+      p) RMTPATH="$OPTARG";;
+      :) echo "Option -$OPTARG requires an argument." >&2; exit 1;;
+      *) usage;;
+   esac
+done
+
+shift $((OPTIND -1))
+
+if [ -z "$DUMPDIR" ]; then
+   usage
+   exit 1
+fi
+
+LOGFILE="$DUMPDIR/$PROG.$DTE.log"
+
+get_version_build
+[ "$VERSION_BUILD" = "" ] && DMP_PREFIX="pcebackup" || DMP_PREFIX="pcebackup.$VERSION_BUILD"
+
+[ -z "$SSHKEY" ] && SSHKEY="$(echo ~)/.ssh/id_rsa"
+
+[ -z "$RETENTION" ] && RETENTION=7
+
+if [ ! -d "$DUMPDIR" ]; then
+   log_print "ERROR" "Directory $DUMPDIR does not exist."
+   exit 1
+fi
+
+log_print "INFO" "Starting $PROG Database Backup"
+log_print "INFO" "PCE Version : $VERSION_BUILD"
+is_redis_server
+log_print "INFO" "Redis Server: $REDIS_IP"
+
+if is_db_master; then
+   pce_dbdump "$DUMPDIR/$DMP_PREFIX.policydb.$HOSTNAME.dbdump.$DTE" "policydb"
+   pce_dbdump "$DUMPDIR/$DMP_PREFIX.trafficdb.$HOSTNAME.dbdump.$DTE" "trafficdb"
+
+   if [ -n "$SSHKEY" ] && [ -n "$RMTUSER" ] && [ -n "$RMTHOST" ] && [ -n "$RMTPATH" ]; then
+      scp_remote_host "$DUMPDIR/$DMP_PREFIX.policydb.$HOSTNAME.dbdump.$DTE" "$SSHKEY" "$RMTUSER" "$RMTHOST" "$RMTPATH"
+      scp_remote_host "$DUMPDIR/$DMP_PREFIX.trafficdb.$HOSTNAME.dbdump.$DTE" "$SSHKEY" "$RMTUSER" "$RMTHOST" "$RMTPATH"
+   fi
+
+   tar -czf "$DUMPDIR/pce_backup_$datetime.tar.gz" "$DUMPDIR/$DMP_PREFIX.policydb.$HOSTNAME.dbdump.$DTE" "$DUMPDIR/$DMP_PREFIX.trafficdb.$HOSTNAME.dbdump.$DTE" -P "${files[@]}"
+   rm -f "$DUMPDIR/$DMP_PREFIX.policydb.$HOSTNAME.dbdump.$DTE" "$DUMPDIR/$DMP_PREFIX.trafficdb.$HOSTNAME.dbdump.$DTE"
+else
+   backup_files "${files[@]}"
+
+   if [ -n "$SSHKEY" ] && [ -n "$RMTUSER" ] && [ -n "$RMTHOST" ] && [ -n "$RMTPATH" ]; then
+      scp_remote_host "$DUMPDIR/pce_backup_$datetime.tar.gz" "$SSHKEY" "$RMTUSER" "$RMTHOST" "$RMTPATH"
+   fi
+fi
+
+log_print "INFO" "Cleaning up old pcebackup files"
+find "$DUMPDIR" \( -name "pce_backup_*" -o -name "pcebackup.*.log" \) -not -newermt $(date -d "$RETENTION days ago" +%Y-%m-%d) -exec rm {} +
+
+log_print "INFO" "Completed $PROG Backup"

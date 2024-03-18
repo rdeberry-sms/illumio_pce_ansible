@@ -1,4 +1,4 @@
-formatter: "markdown table"
+formatter: "pretty"
 version: "0.17"
 header-from: main.tf
 footer-from: ""

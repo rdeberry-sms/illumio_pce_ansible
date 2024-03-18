@@ -1,4 +1,14 @@
 ---
+- name: Get connection information
+  shell: nmcli --terse --fields NAME connection show
+  register: connection_info
+  ignore_errors: true
+  changed_when: false
+
+- name: Extract connection names
+  set_fact:
+    connection_names: "{{ connection_info.stdout_lines | list }}"
+
 - name: "Startup Firewalld"
   systemd_service:
     name: firewalld
@@ -16,9 +26,38 @@
   set_fact:
     first_non_loopback_interface: "{{ ansible_non_loopback_interfaces | default([]) | first }}"
 
+- name: Create new firewall zone
+  firewalld:
+    zone: illumio
+    state: present
+    permanent: true
+
+- name: Copy configuration file for new zone
+  copy:
+    src: /usr/lib/firewalld/zones/drop.xml
+    dest: /etc/firewalld/zones/illumio.xml
+    remote_src: yes
+
+- name: Always reload firewalld
+  ansible.builtin.service:
+    name: firewalld
+    state: reloaded
+
+- name: Set default firewall zone
+  firewalld:
+    zone: illumio
+    interface: "{{ first_non_loopback_interface }}"
+    immediate: true
+    permanent: true
+    state: enabled
+
+- name: Reload firewall configuration
+  firewalld:
+    state: enabled
+
 - name: Configure Illumio Intra TCP Rules
   firewalld:
-    zone: public
+    zone: illumio
     state: enabled
     permanent: yes
     immediate: yes
@@ -35,7 +74,7 @@
 
 - name: Configure Illumio Intra TCP Rules
   firewalld:
-    zone: public
+    zone: illumio
     state: enabled
     permanent: true
     rich_rule: 'rule family="ipv4" priority="0" source address="{{ item.0 }}" port port="{{ item.1 }}" protocol="tcp" accept'
@@ -45,7 +84,7 @@
 
 - name: Configure Illumio Intra UDP Rules
   firewalld:
-    zone: public
+    zone: illumio
     state: enabled
     permanent: true
     rich_rule: 'rule family="ipv4" priority="0" source address="{{ item }}" port port="8000-8400" protocol="udp" accept'
@@ -53,7 +92,7 @@
 
 - name: Block other traffic to Illumio ports
   firewalld:
-    zone: public
+    zone: illumio
     state: enabled
     permanent: true
     rich_rule: 'rule family="ipv4" priority="32000" source address="0.0.0.0/0" port port="{{ item.1 }}" protocol="tcp" drop'
@@ -61,9 +100,17 @@
     - "{{ ansible_play_batch }}"
     - "{{ illumio_intra_ports }}"
 
+- name: Add port SSH to Firewalld
+  firewalld:
+    zone: illumio
+    service: ssh
+    permanent: yes
+    state: enabled
+  when: "prefix_name in group_names"
+
 - name: Add port {{ mgmt_port }} to Firewalld
   firewalld:
-    zone: public
+    zone: illumio
     port: "{{ mgmt_port }}/tcp"
     permanent: yes
     state: enabled
@@ -71,7 +118,7 @@
 
 - name: Add port {{ ven_lightning_port }} to Firewalld
   firewalld:
-    zone: public
+    zone: illumio
     port: "{{ ven_lightning_port }}/tcp"
     permanent: yes
     state: enabled
@@ -88,6 +135,41 @@
     enabled: yes
   ignore_errors: true
   when: "prefix_name in group_names"
+
+- name: Set the zone for the NetworkManager connection
+  ansible.builtin.shell: "nmcli connection modify '{{ connection_names[0] }}' connection.zone illumio"
+
+- name: Check if LogDenied is set to off
+  shell: grep -q -i '^LogDenied=off' /etc/firewalld/firewalld.conf
+  register: logdenied_check
+  ignore_errors: true
+
+- name: Update LogDenied setting if necessary
+  ansible.builtin.shell: sed -i'Backup' 's/LogDenied=off/LogDenied=all/' /etc/firewalld/firewalld.conf
+  when: logdenied_check.rc == 0
+
+- name: Output if LogDenied needed to be changed
+  debug:
+    msg: "LogDenied parameter has been updated."
+  when: logdenied_check.rc == 0
+
+- name: Output if LogDenied was already correctly set
+  debug:
+    msg: "No changes required for LogDenied parameter."
+  when: logdenied_check.rc != 0
+
+- name: Create /etc/rsyslog.d/firewalld-dropped.conf file
+  ansible.builtin.copy:
+    content: |
+      :msg,contains,"_DROP" /var/log/firewalld-dropped.log
+      :msg,contains,"_REJECT" /var/log/firewalld-dropped.log
+      & stop
+    dest: /etc/rsyslog.d/firewalld-dropped.conf
+
+- name: Restart rsyslog service
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted
 
 - name: "Enable conntrack in modprobe"
   modprobe:

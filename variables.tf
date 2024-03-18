@@ -199,7 +199,8 @@ variable "ansible_environment_vars" {
     gathering                    = "smart",
     fact_caching_timeout         = "86400",
     pipelining                   = "True",
-    display_skipped_hosts        = "no"
+    display_skipped_hosts        = "no",
+    callbacks_enabled            = "profile_tasks"
   }
 }
 

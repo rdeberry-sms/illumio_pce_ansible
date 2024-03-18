@@ -57,6 +57,7 @@ module "example" {
   "ANSIBLE_DEPRECATION_WARNINGS": "True",
   "ANSIBLE_HOST_KEY_CHECKING": "False",
   "ANSIBLE_STDOUT_CALLBACK": "default",
+  "callbacks_enabled": "profile_tasks",
   "display_skipped_hosts": "no",
   "fact_caching_timeout": "86400",
   "gathering": "smart",
@@ -125,7 +126,7 @@ module "example" {
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_ansible_environment_vars"></a> [ansible\_environment\_vars](#input\_ansible\_environment\_vars) | Environment Variables for Ansible | `map(string)` | <pre>{<br>  "ANSIBLE_DEPRECATION_WARNINGS": "True",<br>  "ANSIBLE_HOST_KEY_CHECKING": "False",<br>  "ANSIBLE_STDOUT_CALLBACK": "default",<br>  "display_skipped_hosts": "no",<br>  "fact_caching_timeout": "86400",<br>  "gathering": "smart",<br>  "host_hey_checking": "False",<br>  "pipelining": "True",<br>  "remote_tmp": "/tmp/"<br>}</pre> | no |
+| <a name="input_ansible_environment_vars"></a> [ansible\_environment\_vars](#input\_ansible\_environment\_vars) | Environment Variables for Ansible | `map(string)` | <pre>{<br>  "ANSIBLE_DEPRECATION_WARNINGS": "True",<br>  "ANSIBLE_HOST_KEY_CHECKING": "False",<br>  "ANSIBLE_STDOUT_CALLBACK": "default",<br>  "callbacks_enabled": "profile_tasks",<br>  "display_skipped_hosts": "no",<br>  "fact_caching_timeout": "86400",<br>  "gathering": "smart",<br>  "host_hey_checking": "False",<br>  "pipelining": "True",<br>  "remote_tmp": "/tmp/"<br>}</pre> | no |
 | <a name="input_ansible_password"></a> [ansible\_password](#input\_ansible\_password) | Password of ansible user | `string` | `""` | no |
 | <a name="input_ansible_ssh_user"></a> [ansible\_ssh\_user](#input\_ansible\_ssh\_user) | Name of user to use for ansible | `string` | n/a | yes |
 | <a name="input_ansible_sudo_password"></a> [ansible\_sudo\_password](#input\_ansible\_sudo\_password) | Password of ansible user | `string` | `""` | no |

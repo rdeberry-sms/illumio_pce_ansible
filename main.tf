@@ -22,7 +22,6 @@ resource "null_resource" "ansible_apply" {
   }
 }
 
-
 resource "local_file" "ansible_vars" {
   depends_on      = [local_file.ansible_hosts]
   filename        = "${path.module}/working/vars.yml"
@@ -65,8 +64,7 @@ resource "local_file" "ansible_vars" {
       fact_caching_timeout         = "86400"
       pipelining                   = "True"
       display_skipped_hosts        = "no"
-
-
+      callbacks_enabled            = "profile_tasks"
     }
     when    = destroy
     command = <<EOT
@@ -112,16 +110,19 @@ resource "random_string" "sde_key" {
 }
 
 resource "random_password" "admin_ui" {
-  length  = 16
-  special = true
-  upper   = true
-  lower   = true
+  length      = 16
+  special     = false
+  upper       = true
+  lower       = true
+  min_lower   = 1
+  min_upper   = 1
+  min_numeric = 1
 }
 
 resource "random_string" "keepalived" {
   count   = var.create_lb ? 1 : 0
   length  = 12
-  special = true
+  special = false
   upper   = true
   lower   = true
 }
