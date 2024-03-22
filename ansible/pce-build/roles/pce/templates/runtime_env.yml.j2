@@ -22,6 +22,7 @@ email_display_name: noreply@{{prefix_name}}
 smtp_relay_address: 127.0.0.1:25
 expose_user_invitation_link: true
 syslog_event_export_format: json
+internal_service_ip: {{ ansible_default_ipv4.address }}
 cluster_public_ips:
   cluster_fqdn:
 {% for ip in hostvars[inventory_hostname]['groups']['corenodes'] %}
