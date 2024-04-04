@@ -14,7 +14,6 @@ resource "local_file" "etc_hosts" {
 resource "null_resource" "ansible_apply" {
   depends_on = [local_file.ansible_vars, local_file.ansible_hosts]
   provisioner "local-exec" {
-    environment = var.ansible_environment_vars
     when        = create
     command     = <<EOT
       ansible-playbook --extra-vars '@${local_file.ansible_vars.filename}' -b -i ${local_file.ansible_hosts.filename}  ${path.module}/ansible/pce-build/pce-build.yaml
@@ -54,18 +53,6 @@ resource "local_file" "ansible_vars" {
       full_cert             = local_file.full_cert.filename
   })
   provisioner "local-exec" {
-    environment = {
-      ANSIBLE_HOST_KEY_CHECKING    = "False"
-      ANSIBLE_DEPRECATION_WARNINGS = "True"
-      ANSIBLE_STDOUT_CALLBACK      = "default"
-      host_hey_checking            = "False"
-      remote_tmp                   = "/tmp/"
-      gathering                    = "smart"
-      fact_caching_timeout         = "86400"
-      pipelining                   = "True"
-      display_skipped_hosts        = "no"
-      callbacks_enabled            = "profile_tasks"
-    }
     when    = destroy
     command = <<EOT
     ansible-playbook --extra-vars '@${self.filename}' -b -i ${path.module}/working/hosts.yml ${path.module}/ansible/pce-destroy/pce-destroy.yaml
