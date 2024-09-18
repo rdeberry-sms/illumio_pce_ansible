@@ -226,9 +226,15 @@
   register: fapolicyd_status
   ignore_errors: true
 
-- name: Add ilocron dir to trusted fapolicy list
+- name: Add Var Lib Illumio dir to trusted fapolicy list
   ansible.builtin.command:
-    cmd: fapolicyd-cli --file add /var/lib/illumio-pce/tmp/config/ilocron/ilocron/ --trust-file illumio
+    cmd: fapolicyd-cli --file add /var/lib/illumio-pce --trust-file illumio
+  when: "fapolicyd_status.state == 'started'"
+  ignore_errors: true
+
+  - name: Add Opt Illumio dir to trusted fapolicy list
+  ansible.builtin.command:
+    cmd: fapolicyd-cli --file add /opt/illumio-pce --trust-file illumio
   when: "fapolicyd_status.state == 'started'"
   ignore_errors: true
 
