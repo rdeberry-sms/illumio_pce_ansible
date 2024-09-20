@@ -232,7 +232,7 @@
   when: "fapolicyd_status.state == 'started'"
   ignore_errors: true
 
-  - name: Add Opt Illumio dir to trusted fapolicy list
+- name: Add Opt Illumio dir to trusted fapolicy list
   ansible.builtin.command:
     cmd: fapolicyd-cli --file add /opt/illumio-pce --trust-file illumio
   when: "fapolicyd_status.state == 'started'"
