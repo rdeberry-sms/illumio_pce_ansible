@@ -30,7 +30,7 @@ cluster_public_ips:
   - {{ip}}
 {% endif %}
 {% endfor %}
-{% if load_balancer_ip is defined %}
+{% if load_balancer_ip is defined and load_balancer_ip != "" %}
   - {{load_balancer_ip}}
 {% endif %}
 export_flow_summaries_to_syslog:
