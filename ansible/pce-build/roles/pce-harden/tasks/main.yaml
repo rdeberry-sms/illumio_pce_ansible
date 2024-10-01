@@ -81,6 +81,7 @@
   with_nested:
     - "{{ ansible_play_batch }}"
     - "{{ illumio_intra_ports }}"
+  when: node_class != "snc0"
 
 - name: Configure Illumio Intra UDP Rules
   firewalld:
@@ -89,6 +90,7 @@
     permanent: true
     rich_rule: 'rule family="ipv4" priority="0" source address="{{ item }}" port port="8000-8400" protocol="udp" accept'
   with_items: "{{ ansible_play_batch }}"
+  when: node_class != "snc0"
 
 - name: Block other traffic to Illumio ports
   firewalld:
@@ -99,6 +101,7 @@
   with_nested:
     - "{{ ansible_play_batch }}"
     - "{{ illumio_intra_ports }}"
+  when: node_class != "snc0"
 
 - name: Add port SSH to Firewalld
   firewalld:
