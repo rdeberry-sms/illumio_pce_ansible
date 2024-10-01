@@ -238,7 +238,7 @@
   when: "fapolicyd_status.state == 'started'"
   ignore_errors: true
 
-- name: Add ilocron dir to trusted fapolicy list
+- name: Update policy for fapolicy
   ansible.builtin.command:
     cmd: fapolicyd-cli --update
   when: "fapolicyd_status.state == 'started'"
